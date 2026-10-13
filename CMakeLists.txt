@@ -52,11 +52,15 @@ else()
 endif()
 
 add_library(hal_stm32f4 STATIC
-    port_internal.c
     gpio/hal_gpio.c
+    gpio/hal_gpio_private.c
     i2c/hal_i2c.c
+    i2c/hal_i2c_private.c
     uart/hal_uart.c
+    uart/hal_uart_private.c
     timer/hal_timer.c
+    timer/hal_timer_private.c
+    timer/hal_timer_irq.c
 )
 add_library(hal::stm32f4 ALIAS hal_stm32f4)
 target_include_directories(hal_stm32f4 PUBLIC

@@ -5,6 +5,30 @@ STM32CubeF4 HAL. Os mesmos fontes atendem ao STM32F411 e ao STM32F407. As
 condicionais verificam recursos definidos pelo SDK; não selecionam placas,
 pinos de produto ou configurações de clock global.
 
+## Organização
+
+A implementação segue a organização de `FW.0068.000/src/hal/stm32f1`, adaptada
+aos handles opacos e aos contratos atuais de `hal/interface/`:
+
+- `gpio/hal_gpio.c`, `i2c/hal_i2c.c`, `uart/hal_uart.c` e `timer/hal_timer.c`
+  implementam as entradas públicas, validam argumentos e verificam o estado
+  necessário para cada operação.
+- Os respectivos `hal_*_private.c/.h` concentram a validação de capacidades,
+  configuração de clocks, conversão de parâmetros e acesso à STM32Cube HAL.
+  Seus símbolos têm prefixos próprios do port e são internos à implementação.
+- `gpio/hal_gpio_private.c` também fornece os helpers de pinos físicos usados
+  pelo I2C e pela UART. `port_internal.h` reúne a tradução de status e a
+  validação de timeouts.
+- `timer/hal_timer_irq.c` atende à interrupção de atualização do temporizador.
+  O vetor de IRQ permanece na integração da aplicação, que conhece seu handle.
+- Os cabeçalhos `hal_*_stm32f4.h` e `port_pin.h` definem os recursos físicos
+  necessários à composição no BSP. Componentes recebem apenas handles opacos.
+
+Os módulos da referência que correspondem à interface atual são GPIO, serial
+(adaptado para UART) e timer. O I2C segue a mesma separação. As assinaturas,
+enumerações, estruturas de configuração e contratos de `hal/interface/`
+permanecem preservados.
+
 ## Responsabilidades e pré-requisitos
 
 O BSP/integração deve:
@@ -160,10 +184,11 @@ targets que carreguem fontes da aplicação/BSP via `INTERFACE_SOURCES`. Assim
 a integração pode aproveitar o SDK já configurado pelo ambiente STM32Cube.
 
 O CMake da raiz deste checkout continua sendo a integração STM32F411 existente.
-Recebe `STM32CUBE_F4_PATH` e `STM32F4_HAL_CONFIG_DIR`, adiciona o porte e o arquivo
-de sistema do SDK, e preserva as opções de CPU/ABI da toolchain. A extensão
-STM32Cube para VS Code pode usar o preset Debug/Release existente. Caminhos
-pessoais podem ser informados em `CMakeUserPresets.json` (ignorado pelo Git):
+Fornece seu target `stm32cube_f4_hal` ao port, adiciona o BSP e o arquivo de
+sistema do SDK e preserva as opções de CPU/ABI da toolchain. Seu SDK pode vir
+de `STM32CUBE_F4_PATH` ou dos componentes fixados em `cmake/stm32cube.cmake`.
+A extensão STM32Cube para VS Code pode usar o preset Debug/Release existente.
+Caminhos pessoais podem ser informados em `CMakeUserPresets.json`:
 
 ```json
 {
@@ -172,15 +197,14 @@ pessoais podem ser informados em `CMakeUserPresets.json` (ignorado pelo Git):
     "name": "Debug-local",
     "inherits": "Debug",
     "cacheVariables": {
-      "STM32CUBE_F4_PATH": "/caminho/local/STM32Cube_FW_F4",
-      "STM32F4_HAL_CONFIG_DIR": "/caminho/local/configuracao-do-bsp"
+      "STM32CUBE_F4_PATH": "/caminho/local/STM32Cube_FW_F4"
     }
   }]
 }
 ```
 
-O executável da raiz conserva seu `main` vazio; a composição concreta da placa
-é fornecida pelo projeto que utilizar o framework.
+O executável da raiz inicializa HAL, integração da placa e BSP Black Pill antes
+de entrar em espera. A composição específica está em `bsp/bsp_stm32f411.c`.
 
 ## Verificação
 
@@ -202,14 +226,11 @@ Repita com `STM32F4_DEVICE=STM32F407xx` e, opcionalmente,
 `STM32F4_TEST_CALLBACKS=1`. Os testes não verificam condições elétricas,
 precisão física do clock nem execução nas placas.
 
-A implementação foi compilada para ARM Cortex-M4 com Clang 21.1.8, para ambos
-os MCUs, usando os drivers reais, e testada no host com GCC 15.2.0. Referências
-utilizadas na verificação:
+A reformulação foi verificada no host com GCC 15.2.0 para STM32F411 e STM32F407,
+incluindo registro de callbacks habilitado no SDK. O firmware STM32F411 da raiz
+foi compilado em Debug e Release com GNU Tools for STM32 14.3.1 e os drivers
+reais das versões fixadas em `cmake/stm32cube.cmake`.
 
-- STM32F4 HAL v1.8.5: `1f6451c3e07728b4c830744de380e56bf5bc0026`.
-- CMSIS Device F4: `9192c7b9df75a142f2027ab266601fe061fc00b3`.
-- CMSIS 5: `2b7495b8535bdcb306dac29b9ded4cfb679d7e5c`.
-
-Os contratos públicos vigentes foram preservados. A proposta textual também
-menciona timeout por chamada e transação I2C combinada, que não estão expostos
-na interface atual e não foram acrescentados por este porte.
+Os testes de integração da raiz, configurados com `cmake -S tests`, reutilizam
+essa infraestrutura e acrescentam inicialização do BSP, rejeição de clocks,
+propagação de erros, recuperação e encaminhamento de TIM2/SysTick.

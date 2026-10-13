@@ -7,10 +7,13 @@
 #include "i2c/hal_i2c_stm32f4.h"
 #include "uart/hal_uart_stm32f4.h"
 #include "timer/hal_timer_stm32f4.h"
+#ifdef STM32F4_TEST_APPLICATION
+#include "test_fixture.h"
+#endif
 
 static HAL_StatusTypeDef sdk_status;
 static uint32_t hclk, pclk1, pclk2, tick, advance_per_write;
-static uint32_t gpio_writes, gpio_inits, uart_writes, timer_starts, i2c_calls;
+static uint32_t gpio_writes, gpio_inits, gpio_output_inits, uart_writes, timer_starts, i2c_calls;
 static uint32_t timeouts[4];
 static uint16_t sizes[4], device_address;
 static const uint8_t *buffers[4];
@@ -27,6 +30,7 @@ static void reset_state(void)
     hclk = 100000000U; pclk1 = 50000000U; pclk2 = 100000000U;
     tick = 0U; advance_per_write = 0U;
     gpio_writes = gpio_inits = uart_writes = timer_starts = i2c_calls = 0U;
+    gpio_output_inits = 0U;
     memset(timeouts, 0, sizeof(timeouts));
     irq_enabled = false;
 }
@@ -40,7 +44,10 @@ static void assert_gpio_clock(GPIO_TypeDef *port)
 void HAL_GPIO_Init(GPIO_TypeDef *port, GPIO_InitTypeDef *config)
 {
     assert_gpio_clock(port);
-    if (config->Mode == GPIO_MODE_OUTPUT_PP) { assert(gpio_writes > gpio_inits); }
+    if (config->Mode == GPIO_MODE_OUTPUT_PP) {
+        assert(gpio_writes > gpio_output_inits);
+        ++gpio_output_inits;
+    }
     last_gpio_config = *config;
     ++gpio_inits;
 }
@@ -153,6 +160,20 @@ void HAL_NVIC_SetPriority(IRQn_Type irq, uint32_t priority, uint32_t subpriority
     assert(irq == selected_irq && subpriority == 0U);
     selected_priority = priority;
 }
+
+#ifdef STM32F4_TEST_APPLICATION
+void stm32f4_test_set_clocks(uint32_t hclk_hz, uint32_t pclk1_hz, uint32_t pclk2_hz)
+{
+    hclk = hclk_hz;
+    pclk1 = pclk1_hz;
+    pclk2 = pclk2_hz;
+}
+
+void stm32f4_test_set_status(HAL_StatusTypeDef status)
+{
+    sdk_status = status;
+}
+#endif
 
 static void test_gpio(void)
 {
@@ -362,6 +383,10 @@ int main(void)
                         -1, 0);
     assert(memory != MAP_FAILED);
     test_gpio(); test_i2c(); test_uart(); test_timer();
+#ifdef STM32F4_TEST_APPLICATION
+    reset_state();
+    stm32f4_test_application();
+#endif
     assert(munmap(memory, 0x30000U) == 0);
     puts("GPIO, I2C, UART and timer contract tests passed");
     return 0;

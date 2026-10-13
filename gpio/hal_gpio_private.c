@@ -1,4 +1,4 @@
-#include "port_internal.h"
+#include "hal_gpio_private.h"
 
 bool hal_stm32f4_gpio_supported(GPIO_TypeDef *port, uint16_t pin)
 {
@@ -127,4 +127,40 @@ void hal_stm32f4_pin_init(const hal_stm32f4_pin_t *pin, uint32_t mode)
     };
     hal_stm32f4_gpio_enable_clock(pin->port);
     HAL_GPIO_Init(pin->port, &config);
+}
+
+hal_status_t hal_gpio_stm32f4_configure(hal_gpio_t *gpio, const hal_gpio_config_t *config)
+{
+    if (!hal_stm32f4_gpio_supported(gpio->port, gpio->pin) ||
+        !IS_GPIO_SPEED(gpio->speed)) {
+        return HAL_STATUS_NOT_SUPPORTED;
+    }
+
+    GPIO_InitTypeDef driver_config = {
+        .Pin = gpio->pin,
+        .Mode = config->direction == HAL_GPIO_DIRECTION_OUTPUT
+                    ? GPIO_MODE_OUTPUT_PP : GPIO_MODE_INPUT,
+        .Pull = config->pull == HAL_GPIO_PULL_UP ? GPIO_PULLUP
+                    : config->pull == HAL_GPIO_PULL_DOWN ? GPIO_PULLDOWN : GPIO_NOPULL,
+        .Speed = gpio->speed,
+    };
+    hal_stm32f4_gpio_enable_clock(gpio->port);
+    if (config->direction == HAL_GPIO_DIRECTION_OUTPUT) {
+        /* Preload the latch before enabling output, including reconfiguration. */
+        HAL_GPIO_WritePin(gpio->port, gpio->pin, GPIO_PIN_RESET);
+    }
+    HAL_GPIO_Init(gpio->port, &driver_config);
+    gpio->direction = config->direction;
+    gpio->configured = true;
+    return HAL_STATUS_OK;
+}
+
+bool hal_gpio_stm32f4_read(hal_gpio_t *gpio)
+{
+    return HAL_GPIO_ReadPin(gpio->port, gpio->pin) == GPIO_PIN_SET;
+}
+
+void hal_gpio_stm32f4_write(hal_gpio_t *gpio, bool level)
+{
+    HAL_GPIO_WritePin(gpio->port, gpio->pin, level ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
