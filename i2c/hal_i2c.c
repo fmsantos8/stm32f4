@@ -73,7 +73,7 @@ static hal_status_t validate_config(const hal_i2c_config_t *config) {
         alternate_function(config->instance, config->data_pin, true) < 0) {
         return HAL_STATUS_NOT_SUPPORTED;
     }
-    return hal_stm32f4_construction_status();
+    return HAL_STATUS_OK;
 }
 
 static void enable_and_reset(uint8_t instance) {
@@ -101,13 +101,14 @@ static void enable_and_reset(uint8_t instance) {
 /** Reserve the controller and pins, then allocate the persistent bus object. */
 static hal_status_t allocate_bus(hal_i2c_t **out_object, const hal_i2c_config_t *config) {
 
-    if (claimed_controllers[config->instance] || (controllers[config->instance]->CR1 & I2C_CR1_PE) != 0) {
-        return HAL_STATUS_RESOURCE_BUSY;
-    }
-
     hal_status_t status = hal_stm32f4_pins_claim(config->clock_pin, &config->data_pin);
     if (status != HAL_STATUS_OK) {
         return status;
+    }
+    if (claimed_controllers[config->instance] || (controllers[config->instance]->CR1 & I2C_CR1_PE) != 0) {
+        hal_stm32f4_pin_release(config->clock_pin);
+        hal_stm32f4_pin_release(config->data_pin);
+        return HAL_STATUS_RESOURCE_BUSY;
     }
 
     void *storage = NULL;

@@ -32,18 +32,6 @@ hal_status_t hal_stm32f4_sdk_status(HAL_StatusTypeDef status) {
     }
 }
 
-hal_status_t hal_stm32f4_construction_status(void) {
-    if (!hal_stm32f4_system_ready()) {
-        return HAL_STATUS_NOT_INITIALIZED;
-    }
-    hal_memory_info_t info;
-    hal_status_t status = hal_stm32f4_memory_status(hal_memory_get_info(&info));
-    if (status != HAL_STATUS_OK) {
-        return status;
-    }
-    return info.sealed ? HAL_STATUS_INVALID_STATE : HAL_STATUS_OK;
-}
-
 hal_status_t hal_stm32f4_pin_validate(hal_pin_t pin) {
     if (pin.port >= 9 || pin.number >= 16) {
         return HAL_STATUS_INVALID_ARGUMENT;
@@ -105,9 +93,13 @@ hal_status_t hal_stm32f4_pins_claim(hal_pin_t first, const hal_pin_t *second) {
     if (status != HAL_STATUS_OK) {
         return status;
     }
-    status = hal_stm32f4_construction_status();
+    hal_memory_info_t info = {0};
+    status = hal_stm32f4_memory_status(hal_memory_get_info(&info));
     if (status != HAL_STATUS_OK) {
         return status;
+    }
+    if (info.sealed) {
+        return HAL_STATUS_INVALID_STATE;
     }
     if ((claimed_pins[first.port] & (1U << first.number)) != 0 ||
         (second != NULL && (claimed_pins[second->port] & (1U << second->number)) != 0)) {

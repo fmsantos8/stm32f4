@@ -41,18 +41,6 @@ hal_status_t hal_stm32f4_memory_status(hal_memory_status_t status);
 hal_status_t hal_stm32f4_sdk_status(HAL_StatusTypeDef status);
 
 /**
- * @brief Check whether the system and arena allow resource construction.
- *
- * @details Requires successful hal_system_init() and an initialized, unsealed
- * arena. This query neither allocates storage nor reserves hardware resources.
- *
- * @retval HAL_STATUS_OK Resource construction is available.
- * @retval HAL_STATUS_NOT_INITIALIZED System or arena initialization is missing.
- * @retval HAL_STATUS_INVALID_STATE The arena is sealed.
- */
-hal_status_t hal_stm32f4_construction_status(void);
-
-/**
  * @brief Validate a physical GPIO bank and pin for the selected STM32 device.
  *
  * @details Bank identifiers are zero-based: A=0 through I=8. F411 supports
@@ -96,9 +84,10 @@ bool hal_stm32f4_pin_equal(hal_pin_t first, hal_pin_t second);
 /**
  * @brief Reserve one or two distinct pins for a HAL resource.
  *
- * @details Validates the pins, construction lifecycle and the port's pin
- * reservations before claiming either pin. A failed claim leaves reservations
- * unchanged. Peripheral-specific capabilities must be checked before claiming.
+ * @details Validates the pins, arena initialization and sealing state, and the
+ * port's pin reservations before claiming either pin. A failed claim leaves
+ * reservations unchanged. Peripheral-specific capabilities must be checked
+ * before claiming.
  * Construction and SDK pin configuration must be sequential; this function
  * provides no synchronization for concurrent callers or interrupt context.
  *
@@ -109,7 +98,7 @@ bool hal_stm32f4_pin_equal(hal_pin_t first, hal_pin_t second);
  * @retval HAL_STATUS_INVALID_ARGUMENT A pin identifier is invalid or the two
  * requested pins are identical.
  * @retval HAL_STATUS_NOT_SUPPORTED A requested bank or pin is unavailable.
- * @retval HAL_STATUS_NOT_INITIALIZED System or arena initialization is missing.
+ * @retval HAL_STATUS_NOT_INITIALIZED The arena has not been initialized.
  * @retval HAL_STATUS_INVALID_STATE The construction phase has ended.
  * @retval HAL_STATUS_RESOURCE_BUSY At least one pin is already reserved.
  */
@@ -164,15 +153,5 @@ void hal_stm32f4_pin_alternate(hal_pin_t pin, uint32_t alternate, bool open_drai
  * @retval HAL_STATUS_NOT_SUPPORTED timeout is HAL_MAX_DELAY.
  */
 hal_status_t hal_stm32f4_timeout_validate(uint32_t timeout);
-
-/**
- * @brief Query whether framework system initialization has completed successfully.
- *
- * @details Remains true after arena sealing. Resource constructors must use
- * hal_stm32f4_construction_status() to check whether allocation is still allowed.
- *
- * @return bool True after successful hal_system_init(); false before success.
- */
-bool hal_stm32f4_system_ready(void);
 
 #endif
